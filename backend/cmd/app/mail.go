@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 
@@ -14,7 +15,7 @@ import (
 
 func main() {
 	// Load Config
-  	cfg := config.Load()
+	cfg := config.Load()
 
 	// Initialize Database
 	database, err := db.Init(cfg)
@@ -32,6 +33,11 @@ func main() {
 	// Middlewares
 	app.Use(logger.New())
 	app.Use(recover.New())
+	app.Use(cors.New(cors.Config{
+		AllowOrigins: "*",
+		AllowMethods: "GET,POST,PUT,DELETE,OPTIONS",
+		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
+	}))
 
 	// Routes Setup
 	routers.Setup(app, database)

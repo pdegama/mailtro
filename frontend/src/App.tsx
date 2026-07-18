@@ -7,6 +7,8 @@ import { MailSection } from './components/mail/MailSection';
 import { MailStage } from './components/mail/MailStage';
 import { ScreenerList } from './components/mail/ScreenerList';
 import { UtilityChrome } from './components/mail/UtilityChrome';
+import { AuthScreen } from './components/auth/AuthScreen';
+import { clearAuthSession, getStoredAuthSession } from './api/axiosClient';
 import type { AppView, MailItem } from './data/imbox';
 import { feedItems, newForYou, paperTrailItems, previouslySeen } from './data/imbox';
 
@@ -87,10 +89,14 @@ export function App() {
   const [composeOpen, setComposeOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [view, setView] = useState<AppView>('imbox');
+  const [sessionReady, setSessionReady] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(getStoredAuthSession()));
 
   const activeView = useMemo(() => viewConfig[view], [view]);
 
   useEffect(() => {
+    setSessionReady(true);
+
     function onKeyDown(event: KeyboardEvent) {
       if (event.key.toLowerCase() === 'm' && !event.metaKey && !event.ctrlKey && !event.altKey) {
         setMenuOpen((current) => !current);
@@ -100,6 +106,10 @@ export function App() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
+
+  if (!sessionReady || !isAuthenticated) {
+    return <AuthScreen onAuthenticated={() => setIsAuthenticated(true)} />;
+  }
 
   return (
     <AppShell theme={theme}>
@@ -131,6 +141,17 @@ export function App() {
           </div>
         )}
       </MailStage>
+
+      <button
+        type="button"
+        onClick={() => {
+          clearAuthSession();
+          setIsAuthenticated(false);
+        }}
+        className="fixed right-4 top-4 z-20 rounded-full border border-slate-200 bg-white/85 px-4 py-2 text-sm font-medium text-slate-700 shadow-lg backdrop-blur transition hover:-translate-y-0.5"
+      >
+        Logout
+      </button>
 
       <button
         type="button"
