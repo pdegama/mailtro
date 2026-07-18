@@ -25,17 +25,17 @@ func Load() *Config {
 	}
 
 	return &Config{
-		DBHost:     getEnv("DB_HOST", "localhost"),
-		DBPort:     getEnv("DB_PORT", "5432"),
-		DBUser:     getEnv("DB_USER", "postgres"),
-		DBPassword: getEnv("DB_PASSWORD", "postgres"),
-		DBName:     getEnv("DB_NAME", "mailtro"),
-		DBSSLMode:  getEnv("DB_SSLMODE", "disable"),
-		Port:       getEnv("PORT", "3000"),
+		DBHost:     GetEnv("DB_HOST", "localhost"),
+		DBPort:     GetEnv("DB_PORT", "5432"),
+		DBUser:     GetEnv("DB_USER", "postgres"),
+		DBPassword: GetEnv("DB_PASSWORD", "postgres"),
+		DBName:     GetEnv("DB_NAME", "mailtro"),
+		DBSSLMode:  GetEnv("DB_SSLMODE", "disable"),
+		Port:       GetEnv("PORT", "3000"),
 	}
 }
 
-func getEnv(key, fallback string) string {
+func GetEnv(key, fallback string) string {
 	if value, exists := os.LookupEnv(key); exists {
 		return value
 	}

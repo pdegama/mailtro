@@ -9,7 +9,7 @@ import (
 
 	"github.com/pdegama/mailtroapp/pkg/config"
 	"github.com/pdegama/mailtroapp/pkg/db"
-	"github.com/pdegama/mailtroapp/pkg/handlers"
+	"github.com/pdegama/mailtroapp/pkg/routers"
 )
 
 func main() {
@@ -33,19 +33,8 @@ func main() {
 	app.Use(logger.New())
 	app.Use(recover.New())
 
-	// Health Check Endpoint
-	app.Get("/health", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{
-			"status": "healthy",
-		})
-	})
-
 	// Routes Setup
-	emailHandler := handlers.NewEmailHandler(database)
-	api := app.Group("/api")
-	api.Get("/emails", emailHandler.ListEmails)
-	api.Post("/emails", emailHandler.CreateEmail)
-	api.Delete("/emails/:id", emailHandler.DeleteEmail)
+	routers.Setup(app, database)
 
 	// Start Fiber App
 	port := cfg.Port
