@@ -1,176 +1,234 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Archive, Clock3, FileImage, Inbox, Moon, Pin, SunMedium } from 'lucide-react';
 import { AppShell } from './components/mail/AppShell';
-import { CommandMenu } from './components/mail/CommandMenu';
-import { ComposePanel } from './components/mail/ComposePanel';
-import { MailSection } from './components/mail/MailSection';
+import { AppHeader } from './components/mail/AppHeader';
+import { ComposeDrawer, emptyDraft, type ComposeDraft } from './components/mail/ComposeDrawer';
+import { MailList } from './components/mail/MailList';
+import { MailReader } from './components/mail/MailReader';
 import { MailStage } from './components/mail/MailStage';
-import { ScreenerList } from './components/mail/ScreenerList';
-import { UtilityChrome } from './components/mail/UtilityChrome';
 import { AuthScreen } from './components/auth/AuthScreen';
-import { clearAuthSession, getStoredAuthSession } from './api/axiosClient';
-import type { AppView, MailItem } from './data/imbox';
-import { feedItems, newForYou, paperTrailItems, previouslySeen } from './data/imbox';
+import {
+  clearAuthSession,
+  getStoredAuthSession,
+  type AuthSession,
+} from './api/axiosClient';
+import type { MailItem } from './data/imbox';
+import { emails } from './data/imbox';
 
-type ViewConfig = {
-  title: string;
-  badge?: string;
-  icon: typeof Inbox;
-  sections?: Array<{
-    title: string;
-    action?: string;
-    items: MailItem[];
-  }>;
-};
+function initialsFromUser(session: AuthSession | null): string {
+  const name = session?.user?.fullname || session?.user?.username || 'U';
+  const parts = String(name).trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return String(name).slice(0, 2).toUpperCase();
+}
 
-const quietItems: MailItem[] = [
-  {
-    id: 'quiet-1',
-    sender: 'The Mailtro Team',
-    initials: 'MT',
-    subject: 'Nothing is waiting here',
-    preview: 'When you save something for this place, it will show up in this calm stack.',
-    date: 'Now',
-    avatarColor: 'from-[#8557ff] to-[#4d8dff]',
-    route: 'Empty',
-    source: 'system',
-  },
-];
+function replyDraft(item: MailItem): ComposeDraft {
+  const subject = item.subject.startsWith('Re:') ? item.subject : `Re: ${item.subject}`;
+  return {
+    ...emptyDraft(),
+    to: item.email ?? '',
+    subject,
+    body: `\n\n—\nOn ${item.date}, ${item.sender} wrote:\n> ${item.preview}`,
+    mode: 'reply',
+  };
+}
 
-const viewConfig: Record<AppView, ViewConfig> = {
-  imbox: {
-    title: 'Focus Mail',
-    badge: 'Review sources',
-    icon: Inbox,
-    sections: [
-      { title: 'Needs attention', action: 'Open team view', items: newForYou },
-      { title: 'Recently handled', items: previouslySeen },
-    ],
-  },
-  feed: {
-    title: 'Automation Feed',
-    badge: 'Updates',
-    icon: Inbox,
-    sections: [{ title: 'Fresh signals', action: 'Mark resolved', items: feedItems }],
-  },
-  'paper-trail': {
-    title: 'Ledger',
-    badge: 'Records',
-    icon: Archive,
-    sections: [{ title: 'Captured automatically', action: 'Export CSV', items: paperTrailItems }],
-  },
-  'reply-later': {
-    title: 'Reply Queue',
-    badge: 'Saved replies',
-    icon: Clock3,
-    sections: [{ title: 'Queued replies', action: 'Start batch', items: quietItems }],
-  },
-  'set-aside': {
-    title: 'Hold Queue',
-    badge: 'Pinned',
-    icon: Pin,
-    sections: [{ title: 'Held for context', action: 'Clear resolved', items: quietItems }],
-  },
-  files: {
-    title: 'Asset Library',
-    badge: 'Attachments',
-    icon: FileImage,
-    sections: [{ title: 'Recent assets', action: 'Browse files', items: paperTrailItems }],
-  },
-  screener: {
-    title: 'Source Review',
-    badge: 'Unknown sources',
-    icon: Inbox,
-  },
-};
+function matchesQuery(item: MailItem, query: string) {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return (
+    item.subject.toLowerCase().includes(q) ||
+    item.sender.toLowerCase().includes(q) ||
+    item.preview.toLowerCase().includes(q) ||
+    (item.body?.toLowerCase().includes(q) ?? false) ||
+    (item.email?.toLowerCase().includes(q) ?? false)
+  );
+}
 
 export function App() {
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof window === 'undefined') return 'light';
+    return (window.localStorage.getItem('mailtro-theme') as 'light' | 'dark') || 'light';
+  });
   const [composeOpen, setComposeOpen] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [view, setView] = useState<AppView>('imbox');
+  const [draft, setDraft] = useState<ComposeDraft>(emptyDraft);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selected, setSelected] = useState<MailItem | null>(null);
   const [sessionReady, setSessionReady] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(getStoredAuthSession()));
+  const [session, setSession] = useState<AuthSession | null>(() => getStoredAuthSession());
+  /** Local sent mail appears at the top of the single list. */
+  const [sentMail, setSentMail] = useState<MailItem[]>([]);
 
-  const activeView = useMemo(() => viewConfig[view], [view]);
+  const isAuthenticated = Boolean(session?.token);
+
+  const allMail = useMemo(() => [...sentMail, ...emails], [sentMail]);
+
+  const visibleMail = useMemo(
+    () => allMail.filter((item) => matchesQuery(item, searchQuery)),
+    [allMail, searchQuery]
+  );
+
+  const searchEmpty = Boolean(searchQuery.trim()) && visibleMail.length === 0;
 
   useEffect(() => {
     setSessionReady(true);
+  }, []);
 
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'dark') root.classList.add('dark');
+    else root.classList.remove('dark');
+    window.localStorage.setItem('mailtro-theme', theme);
+  }, [theme]);
+
+  useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key.toLowerCase() === 'm' && !event.metaKey && !event.ctrlKey && !event.altKey) {
-        setMenuOpen((current) => !current);
+      const target = event.target as HTMLElement | null;
+      const typing =
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable);
+
+      if (event.key === '/' && !typing && !event.metaKey && !event.ctrlKey) {
+        event.preventDefault();
+        setSearchOpen(true);
+        return;
+      }
+
+      if (typing) return;
+
+      if (event.key.toLowerCase() === 'c' && !event.metaKey && !event.ctrlKey) {
+        event.preventDefault();
+        openNewCompose();
+      }
+      if (event.key === 'Escape') {
+        if (searchOpen) {
+          setSearchOpen(false);
+          setSearchQuery('');
+        } else if (selected) {
+          setSelected(null);
+        }
       }
     }
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [selected, searchOpen]);
 
-  if (!sessionReady || !isAuthenticated) {
-    return <AuthScreen onAuthenticated={() => setIsAuthenticated(true)} />;
+  function openNewCompose() {
+    setDraft(emptyDraft());
+    setComposeOpen(true);
+  }
+
+  function handleReply(item: MailItem) {
+    setDraft(replyDraft(item));
+    setComposeOpen(true);
+  }
+
+  function handleSent(sent: ComposeDraft) {
+    const now = new Date();
+    const time = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const item: MailItem = {
+      id: `sent-${now.getTime()}`,
+      sender: 'You',
+      initials: initialsFromUser(session),
+      email: sent.to,
+      subject: sent.subject,
+      preview: sent.body.slice(0, 120) || '(attachment)',
+      body: sent.body || '(empty body)',
+      date: time,
+      avatarColor: 'from-[#51e6c2] to-[#4d8dff]',
+    };
+    setSentMail((prev) => [item, ...prev]);
+  }
+
+  function handleLogout() {
+    clearAuthSession();
+    setSession(null);
+    setSelected(null);
+    setComposeOpen(false);
+    setSearchOpen(false);
+    setSearchQuery('');
+  }
+
+  function toggleTheme() {
+    setTheme((c) => (c === 'dark' ? 'light' : 'dark'));
+  }
+
+  if (!sessionReady) {
+    return (
+      <div className="grid h-full place-items-center bg-canvas text-sm font-semibold text-ink/50 dark:bg-[#0c1017] dark:text-white/50">
+        Loading…
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <AuthScreen
+        theme={theme}
+        onThemeToggle={toggleTheme}
+        onAuthenticated={() => setSession(getStoredAuthSession())}
+      />
+    );
   }
 
   return (
-    <AppShell theme={theme}>
-      <UtilityChrome
-        theme={theme}
-        menuOpen={menuOpen}
-        onMenuToggle={() => setMenuOpen((current) => !current)}
-        onThemeToggle={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
+    <AppShell
+      header={
+        <AppHeader
+          theme={theme}
+          searchOpen={searchOpen}
+          searchQuery={searchQuery}
+          userInitials={initialsFromUser(session)}
+          userName={
+            (session?.user?.fullname as string | undefined) ||
+            (session?.user?.username as string | undefined)
+          }
+          onThemeToggle={toggleTheme}
+          onCompose={openNewCompose}
+          onLogout={handleLogout}
+          onSearchOpen={setSearchOpen}
+          onSearchQuery={setSearchQuery}
+        />
+      }
+    >
+      <div className="flex min-h-0 flex-1 flex-col">
+        <MailStage
+          title="Inbox"
+          reading={Boolean(selected)}
+          onBack={() => setSelected(null)}
+          readerTitle={selected?.subject}
+          emptyMessage={searchEmpty ? `No results for “${searchQuery.trim()}”` : undefined}
+        >
+          {selected ? (
+            <MailReader item={selected} onReply={handleReply} />
+          ) : searchEmpty ? (
+            <p className="px-2 py-12 text-center text-sm font-medium text-ink/45 dark:text-white/45">
+              Try another name or subject.
+            </p>
+          ) : (
+            <MailList
+              items={visibleMail}
+              onSelect={(item) => {
+                setSelected(item);
+                setSearchOpen(false);
+              }}
+            />
+          )}
+        </MailStage>
+      </div>
+
+      <ComposeDrawer
+        open={composeOpen}
+        draft={draft}
+        onOpenChange={setComposeOpen}
+        onDraftChange={setDraft}
+        onSent={handleSent}
       />
-
-      <MailStage
-        title={activeView.title}
-        badge={activeView.badge}
-        onCompose={() => setComposeOpen(true)}
-        className={theme === 'dark' ? 'min-h-[82vh]' : 'min-h-[76vh]'}
-      >
-        {view === 'screener' ? (
-          <ScreenerList />
-        ) : (
-          <div className="mx-auto max-w-[870px]">
-            {activeView.sections?.map((section) => (
-              <MailSection
-                key={section.title}
-                title={section.title}
-                action={section.action}
-                items={section.items}
-              />
-            ))}
-          </div>
-        )}
-      </MailStage>
-
-      <button
-        type="button"
-        onClick={() => {
-          clearAuthSession();
-          setIsAuthenticated(false);
-        }}
-        className="fixed right-4 top-4 z-20 rounded-full border border-slate-200 bg-white/85 px-4 py-2 text-sm font-medium text-slate-700 shadow-lg backdrop-blur transition hover:-translate-y-0.5"
-      >
-        Logout
-      </button>
-
-      <button
-        type="button"
-        onClick={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
-        className="fixed bottom-4 right-4 z-20 grid size-11 place-items-center rounded-full border border-ink/8 bg-white/85 text-ink shadow-lg backdrop-blur transition hover:-translate-y-0.5 dark:border-white/10 dark:bg-white/10 dark:text-white"
-        aria-label="Toggle theme"
-      >
-        {theme === 'dark' ? <SunMedium className="size-5" /> : <Moon className="size-5" />}
-      </button>
-
-      <CommandMenu
-        open={menuOpen}
-        onClose={() => setMenuOpen(false)}
-        onNavigate={(nextView) => {
-          setView(nextView);
-          setMenuOpen(false);
-        }}
-      />
-      <ComposePanel open={composeOpen} onClose={() => setComposeOpen(false)} />
     </AppShell>
   );
 }

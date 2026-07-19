@@ -1,152 +1,266 @@
-import { useMemo, useState } from 'react';
-import { LockKeyhole, Mail, UserRound } from 'lucide-react';
+import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { AlertCircle, Moon, SunMedium } from 'lucide-react';
 import { axiosClient, setAuthSession } from '../../api/axiosClient';
+import { getErrorMessage } from '../../lib/errors';
+import { cn } from '../../lib/cn';
 
 type AuthScreenProps = {
   onAuthenticated: () => void;
+  theme: 'light' | 'dark';
+  onThemeToggle: () => void;
 };
 
-export function AuthScreen({ onAuthenticated }: AuthScreenProps) {
+type FieldErrors = {
+  fullname?: string;
+  username?: string;
+  password?: string;
+};
+
+export function AuthScreen({ onAuthenticated, theme, onThemeToggle }: AuthScreenProps) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [fullname, setFullname] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [loading, setLoading] = useState(false);
 
   const title = useMemo(() => (mode === 'login' ? 'Sign in' : 'Create account'), [mode]);
 
-  async function handleSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    setLoading(true);
-    setError('');
+  function validateClient(): boolean {
+    const next: FieldErrors = {};
 
+    if (mode === 'register' && !fullname.trim()) {
+      next.fullname = 'Full name is required.';
+    }
+
+    const u = username.trim();
+    if (!u) {
+      next.username = 'Username is required.';
+    } else if (u.length < 3) {
+      next.username = 'At least 3 characters.';
+    } else if (!/^[a-zA-Z0-9](?:[a-zA-Z0-9._-]{0,62}[a-zA-Z0-9])?$/.test(u)) {
+      next.username = 'Letters, numbers, dots, _ or - only.';
+    }
+
+    if (!password) {
+      next.password = 'Password is required.';
+    } else if (password.length < 6) {
+      next.password = 'At least 6 characters.';
+    }
+
+    setFieldErrors(next);
+    return Object.keys(next).length === 0;
+  }
+
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    setError('');
+    if (!validateClient()) return;
+
+    setLoading(true);
     try {
       const endpoint = mode === 'login' ? '/auth/login' : '/auth/register';
       const payload =
         mode === 'login'
-          ? { username, password }
-          : { fullname, username, password };
+          ? { username: username.trim(), password }
+          : { fullname: fullname.trim(), username: username.trim(), password };
 
       const response = await axiosClient.post(endpoint, payload);
       const token = response.data?.token;
       const user = response.data?.user;
 
       if (!token || !user) {
-        throw new Error('No auth payload returned by the server');
+        throw new Error('Server did not return a session. Please try again.');
       }
 
       setAuthSession({ user, token });
       onAuthenticated();
     } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : 'Authentication failed. Please try again.';
-      setError(message);
+      setError(getErrorMessage(err, 'Authentication failed. Please try again.'));
     } finally {
       setLoading(false);
     }
   }
 
+  function switchMode(next: 'login' | 'register') {
+    setMode(next);
+    setError('');
+    setFieldErrors({});
+  }
+
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(133,87,255,0.16),_transparent_45%),linear-gradient(135deg,#f8f7ff_0%,#eef4ff_100%)] px-4 py-12 text-slate-900">
-      <div className="mx-auto flex max-w-5xl flex-col overflow-hidden rounded-[28px] border border-slate-200/80 bg-white/80 shadow-[0_25px_80px_rgba(15,23,42,0.10)] backdrop-blur xl:flex-row">
-        <div className="flex flex-1 flex-col justify-between bg-slate-950 p-8 text-white sm:p-10">
-          <div>
-            <div className="mb-6 inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1 text-sm font-medium text-slate-200">
-              Mailtro
-            </div>
-            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-              Your inbox, secured with a modern sign-in flow.
-            </h1>
-            <p className="mt-4 max-w-md text-sm leading-7 text-slate-300 sm:text-base">
-              Register or log in to access your mail workspace. The app stores your session locally so you can continue where you left off.
-            </p>
+    <div className="relative flex h-full min-h-0 items-center justify-center overflow-y-auto bg-canvas px-4 py-10 text-ink dark:bg-[#0c1017] dark:text-white">
+      <button
+        type="button"
+        onClick={onThemeToggle}
+        className="absolute right-4 top-4 grid size-10 place-items-center rounded-full border border-ink/8 bg-white/80 text-ink/70 shadow-sm transition hover:bg-white dark:border-white/10 dark:bg-white/8 dark:text-white/70 dark:hover:bg-white/12"
+        aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+      >
+        {theme === 'dark' ? <SunMedium className="size-4" /> : <Moon className="size-4" />}
+      </button>
+
+      <motion.div
+        initial={{ opacity: 0, y: 18 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ type: 'spring', damping: 26, stiffness: 280 }}
+        className="w-full max-w-[400px]"
+      >
+        <div className="mb-8 text-center">
+          <div className="mx-auto mb-4 grid size-12 place-items-center rounded-2xl bg-ink text-sm font-black uppercase text-white dark:bg-white dark:text-ink">
+            mt
           </div>
-          <div className="mt-8 rounded-2xl border border-white/10 bg-white/10 p-4 text-sm text-slate-300">
-            <p className="font-medium text-white">Tip</p>
-            <p className="mt-2">Use a username with only letters, numbers, dots, underscores, or hyphens.</p>
-          </div>
+          <h1 className="m-0 text-2xl font-black tracking-tight">Mailtro</h1>
+          <p className="m-0 mt-1.5 text-sm font-medium text-ink/50 dark:text-white/50">
+            Focused mail for real work
+          </p>
         </div>
 
-        <div className="flex-1 p-6 sm:p-8 lg:p-10">
-          <div className="mb-8 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium uppercase tracking-[0.24em] text-slate-500">Authentication</p>
-              <h2 className="text-2xl font-semibold text-slate-900">{title}</h2>
-            </div>
-            <div className="rounded-full border border-slate-200 bg-slate-100 p-3 text-slate-700">
-              <LockKeyhole className="size-5" />
-            </div>
+        <div className="rounded-[1.35rem] border border-ink/8 bg-white p-6 shadow-[0_24px_70px_-48px_rgba(18,24,38,0.55)] dark:border-white/10 dark:bg-[#141a24] dark:shadow-black/40 sm:p-7">
+          <div className="mb-5 grid grid-cols-2 rounded-xl border border-ink/8 bg-ink/[0.03] p-1 dark:border-white/10 dark:bg-white/[0.04]">
+            {(['login', 'register'] as const).map((key) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => switchMode(key)}
+                className={cn(
+                  'relative min-h-9 rounded-lg text-sm font-bold transition',
+                  mode === key ? 'text-ink dark:text-white' : 'text-ink/45 hover:text-ink/70 dark:text-white/45 dark:hover:text-white/70'
+                )}
+              >
+                {mode === key ? (
+                  <motion.span
+                    layoutId="auth-tab"
+                    className="absolute inset-0 rounded-lg bg-white shadow-sm dark:bg-white/12"
+                    transition={{ type: 'spring', damping: 28, stiffness: 360 }}
+                  />
+                ) : null}
+                <span className="relative z-10">{key === 'login' ? 'Sign in' : 'Register'}</span>
+              </button>
+            ))}
           </div>
 
-          <form className="space-y-4" onSubmit={handleSubmit}>
-            {mode === 'register' && (
-              <label className="block">
-                <span className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
-                  <UserRound className="size-4" /> Full name
-                </span>
-                <input
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none transition focus:border-violet-400 focus:bg-white"
-                  placeholder="Alex Morgan"
-                  value={fullname}
-                  onChange={(event) => setFullname(event.target.value)}
-                />
-              </label>
-            )}
-
-            <label className="block">
-              <span className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
-                <Mail className="size-4" /> Username
-              </span>
-              <input
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none transition focus:border-violet-400 focus:bg-white"
-                placeholder="alex.morgan"
-                value={username}
-                onChange={(event) => setUsername(event.target.value)}
-              />
-            </label>
-
-            <label className="block">
-              <span className="mb-2 text-sm font-medium text-slate-700">Password</span>
-              <input
-                type="password"
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none transition focus:border-violet-400 focus:bg-white"
-                placeholder="••••••••"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-              />
-            </label>
-
-            {error ? <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">{error}</p> : null}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full rounded-2xl bg-slate-950 px-4 py-3 font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
+          <AnimatePresence mode="wait">
+            <motion.form
+              key={mode}
+              initial={{ opacity: 0, x: mode === 'login' ? -12 : 12 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: mode === 'login' ? 12 : -12 }}
+              transition={{ duration: 0.18 }}
+              className="space-y-3.5"
+              onSubmit={handleSubmit}
+              noValidate
             >
-              {loading ? 'Please wait…' : title}
-            </button>
-          </form>
+              {mode === 'register' ? (
+                <Field label="Full name" error={fieldErrors.fullname}>
+                  <input
+                    className={inputClass(fieldErrors.fullname)}
+                    placeholder="Alex Morgan"
+                    value={fullname}
+                    onChange={(e) => setFullname(e.target.value)}
+                    autoComplete="name"
+                  />
+                </Field>
+              ) : null}
 
-          <div className="mt-6 text-center text-sm text-slate-600">
-            {mode === 'login' ? (
-              <>
-                Don&apos;t have an account?{' '}
-                <button type="button" className="font-semibold text-violet-600" onClick={() => setMode('register')}>
-                  Create one
-                </button>
-              </>
-            ) : (
-              <>
-                Already have an account?{' '}
-                <button type="button" className="font-semibold text-violet-600" onClick={() => setMode('login')}>
-                  Sign in
-                </button>
-              </>
-            )}
-          </div>
+              <Field label="Username" error={fieldErrors.username}>
+                <input
+                  className={inputClass(fieldErrors.username)}
+                  placeholder="alex.morgan"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  autoComplete="username"
+                />
+              </Field>
+
+              <Field label="Password" error={fieldErrors.password}>
+                <input
+                  type="password"
+                  className={inputClass(fieldErrors.password)}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                />
+              </Field>
+
+              <AnimatePresence>
+                {error ? (
+                  <motion.div
+                    role="alert"
+                    initial={{ opacity: 0, y: -6, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: 'auto' }}
+                    exit={{ opacity: 0, y: -6, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="flex items-start gap-2 rounded-xl border border-coral/25 bg-coral/10 px-3 py-2.5 text-sm font-medium text-coral">
+                      <AlertCircle className="mt-0.5 size-4 shrink-0" />
+                      <span>{error}</span>
+                    </div>
+                  </motion.div>
+                ) : null}
+              </AnimatePresence>
+
+              <motion.button
+                type="submit"
+                disabled={loading}
+                whileTap={{ scale: 0.98 }}
+                className="mt-1 w-full rounded-xl bg-ink px-4 py-3 text-sm font-bold text-white transition hover:bg-ink/90 disabled:opacity-70 dark:bg-white dark:text-ink dark:hover:bg-white/92"
+              >
+                {loading ? 'Please wait…' : title}
+              </motion.button>
+            </motion.form>
+          </AnimatePresence>
         </div>
-      </div>
+
+        <p className="mt-5 text-center text-sm text-ink/50 dark:text-white/50">
+          {mode === 'login' ? (
+            <>
+              No account?{' '}
+              <button type="button" className="font-bold text-ink underline-offset-2 hover:underline dark:text-white" onClick={() => switchMode('register')}>
+                Register
+              </button>
+            </>
+          ) : (
+            <>
+              Have an account?{' '}
+              <button type="button" className="font-bold text-ink underline-offset-2 hover:underline dark:text-white" onClick={() => switchMode('login')}>
+                Sign in
+              </button>
+            </>
+          )}
+        </p>
+      </motion.div>
     </div>
+  );
+}
+
+function Field({
+  label,
+  error,
+  children,
+}: {
+  label: string;
+  error?: string;
+  children: ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-ink/45 dark:text-white/45">
+        {label}
+      </span>
+      {children}
+      {error ? <p className="mt-1 text-xs font-medium text-coral">{error}</p> : null}
+    </label>
+  );
+}
+
+function inputClass(error?: string) {
+  return cn(
+    'w-full rounded-xl border bg-ink/[0.025] px-3.5 py-2.5 text-sm outline-none transition focus:bg-white dark:bg-white/[0.04] dark:focus:bg-white/[0.07]',
+    error
+      ? 'border-coral/50 focus:border-coral'
+      : 'border-ink/10 focus:border-ink/25 dark:border-white/10 dark:focus:border-white/25'
   );
 }

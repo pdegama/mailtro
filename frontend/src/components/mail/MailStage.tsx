@@ -1,53 +1,58 @@
 import type { ReactNode } from 'react';
-import { PenLine, ShieldCheck } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { cn } from '../../lib/cn';
 
 type MailStageProps = {
   title: string;
   children: ReactNode;
-  onCompose: () => void;
-  badge?: string;
-  className?: string;
+  reading?: boolean;
+  onBack?: () => void;
+  readerTitle?: string;
+  emptyMessage?: string;
 };
 
-export function MailStage({ title, children, onCompose, badge, className }: MailStageProps) {
+/** Main mail card — same surface language as the compose drawer. */
+export function MailStage({
+  title,
+  children,
+  reading,
+  onBack,
+  readerTitle,
+  emptyMessage,
+}: MailStageProps) {
   return (
-    <section
-      className={cn(
-        'mx-auto mt-5 w-full max-w-[1000px] overflow-hidden rounded-[1.5rem] border border-ink/8 bg-white shadow-[0_24px_80px_-70px_rgba(18,24,38,0.45)] dark:border-white/10 dark:bg-[#1c2532] dark:shadow-black/20',
-        className
-      )}
-    >
-      <div className="relative px-5 pb-8 pt-5 sm:px-10 sm:pt-8">
-        <div className="mb-2 flex min-h-11 items-center justify-between gap-3">
-          {badge ? (
+    <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.25rem] border border-ink/8 bg-white shadow-[0_16px_50px_-42px_rgba(18,24,38,0.5)] dark:border-white/10 dark:bg-[#141a24] dark:shadow-black/40">
+      <div className="shrink-0 border-b border-ink/6 px-4 pb-3.5 pt-4 dark:border-white/8">
+        {reading ? (
+          <div className="mb-3">
             <button
               type="button"
-              className="inline-flex min-h-9 items-center gap-2 rounded-full border border-ink/10 bg-ink/[0.025] px-3 text-sm font-semibold text-ink/64 transition hover:bg-ink/[0.045] dark:border-white/10 dark:bg-white/[0.045] dark:text-white/64"
+              onClick={onBack}
+              className="inline-flex min-h-9 items-center gap-2 rounded-full border border-ink/10 bg-ink/[0.03] px-3 text-sm font-semibold text-ink/70 transition hover:bg-ink/[0.06] dark:border-white/10 dark:bg-white/[0.05] dark:text-white/70"
             >
-              <ShieldCheck className="size-4" />
-              {badge}
+              <ArrowLeft className="size-4" />
+              Back
             </button>
-          ) : (
-            <span />
-          )}
-          <button
-            type="button"
-            onClick={onCompose}
-            className="inline-flex min-h-9 items-center gap-2 rounded-full bg-ink px-4 text-sm font-semibold text-white transition hover:bg-ink/88 dark:bg-white dark:text-ink dark:hover:bg-white/90"
+          </div>
+        ) : null}
+
+        <div className="text-center">
+          <h1
+            className={cn(
+              'm-0 font-black tracking-tight text-ink dark:text-white',
+              reading ? 'text-lg leading-snug' : 'text-[2rem] leading-tight'
+            )}
           >
-            <PenLine className="size-4" />
-            Compose
-          </button>
-        </div>
-
-        <div className="mx-auto max-w-3xl text-center">
-          <h1 className="m-0 text-4xl font-black tracking-tight text-ink dark:text-white sm:text-5xl">
-            {title}
+            {reading ? readerTitle : title}
           </h1>
+          {emptyMessage && !reading ? (
+            <p className="m-0 mt-2 text-sm font-medium text-ink/45 dark:text-white/45">{emptyMessage}</p>
+          ) : null}
         </div>
+      </div>
 
-        <div className="mt-8">{children}</div>
+      <div className="mail-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3">
+        {children}
       </div>
     </section>
   );

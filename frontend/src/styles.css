@@ -3,8 +3,8 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --color-canvas: #f7f5ef;
-  --color-ink: #121826;
+  --color-canvas: #f3f0e8;
+  --color-ink: #1a1f2c;
   --color-mint: #51e6c2;
   --color-sky: #4d8dff;
   --color-coral: #ff6b55;
@@ -19,19 +19,32 @@
   box-sizing: border-box;
 }
 
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
 html {
-  background: #f7f5ef;
+  background: var(--color-canvas);
+  color-scheme: light;
+}
+
+html.dark {
+  background: #0c1017;
+  color-scheme: dark;
 }
 
 body {
-  margin: 0;
   min-width: 320px;
-  min-height: 100vh;
   font-family: var(--font-sans);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+  background: inherit;
 }
 
 button,
@@ -52,4 +65,35 @@ button:disabled {
 ::selection {
   background: #6fe0d1;
   color: #0b1220;
+}
+
+/* Vaul */
+[data-vaul-drawer] {
+  outline: none;
+}
+
+[vaul-drawer-wrapper] {
+  transition: transform 0.45s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.mail-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(26, 31, 44, 0.16) transparent;
+}
+
+.mail-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.mail-scroll::-webkit-scrollbar-thumb {
+  background: rgba(26, 31, 44, 0.14);
+  border-radius: 999px;
+}
+
+html.dark .mail-scroll {
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
+
+html.dark .mail-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
 }
