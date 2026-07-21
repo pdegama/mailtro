@@ -26,7 +26,7 @@ type AuthCred struct {
 
 func (auth *Auth) Auth(cred *AuthCred) (*models.Users, string, error) {
 	var user models.Users
-	if err := auth.DB.Where("username = ?", cred.Username).First(&user).Error; err != nil {
+	if err := auth.DB.Where("username = ?", normalizeUsername(cred.Username)).First(&user).Error; err != nil {
 		return nil, "", err
 	}
 	// verify password
@@ -48,6 +48,8 @@ type AuthRegister struct {
 }
 
 func (auth *Auth) Register(register *AuthRegister) (*models.Users, string, error) {
+	// usernames are mailbox local parts — always stored and compared lowercase
+	register.Username = normalizeUsername(register.Username)
 	if err := validateUsername(register.Username); err != nil {
 		return nil, "", err
 	}
@@ -84,6 +86,7 @@ func (auth *Auth) Register(register *AuthRegister) (*models.Users, string, error
 }
 
 func (auth *Auth) UsernameExist(username string) (bool, error) {
+	username = normalizeUsername(username)
 	if err := validateUsername(username); err != nil {
 		return false, err
 	}
@@ -127,6 +130,10 @@ func (auth *Auth) GetUserFromToken(tokenString string) (*models.Users, error) {
 	}
 
 	return user, nil
+}
+
+func normalizeUsername(username string) string {
+	return strings.ToLower(strings.TrimSpace(username))
 }
 
 func validateUsername(username string) error {

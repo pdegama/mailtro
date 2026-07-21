@@ -31,8 +31,10 @@ func Init(cfg *config.Config) (*gorm.DB, error) {
 
 	// Run AutoMigrations
 	err = database.AutoMigrate(
-		&models.EmailName{},
 		&models.Users{},
+		&models.Domain{},
+		&models.Alias{},
+		&models.Mail{},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to run database migration: %w", err)

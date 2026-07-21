@@ -10,7 +10,10 @@ import (
 
 	"github.com/pdegama/mailtroapp/pkg/config"
 	"github.com/pdegama/mailtroapp/pkg/db"
+	"github.com/pdegama/mailtroapp/pkg/queue"
 	"github.com/pdegama/mailtroapp/pkg/routers"
+	domainsvc "github.com/pdegama/mailtroapp/pkg/service/domain"
+	mailsvc "github.com/pdegama/mailtroapp/pkg/service/mail"
 )
 
 func main() {
@@ -24,6 +27,20 @@ func main() {
 		log.Println("Please verify your PostgreSQL credentials in the .env file or system environment variables.")
 		log.Fatal("Exiting application...")
 	}
+
+	// Connect AMQP (box queues)
+	q, err := queue.Connect(cfg)
+	if err != nil {
+		log.Printf("ERROR: AMQP connection failed: %v\n", err)
+		log.Fatal("Exiting application...")
+	}
+
+	// Services
+	domainService := &domainsvc.Service{DB: database, Cfg: cfg}
+	mailService := &mailsvc.Service{DB: database, Cfg: cfg, Queue: q, Domain: domainService}
+
+	// Start queue consumers (receiver + status) and the retry scheduler
+	mailService.StartWorkers()
 
 	// Initialize Fiber App
 	app := fiber.New(fiber.Config{
@@ -40,7 +57,7 @@ func main() {
 	}))
 
 	// Routes Setup
-	routers.Setup(app, database)
+	routers.Setup(app, database, domainService, mailService)
 
 	// Start Fiber App
 	port := cfg.Port

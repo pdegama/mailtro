@@ -1,0 +1,47 @@
+# Box SMTP (server + client) — deploy on the mail server (smtp.mailtro.site).
+# Both services share the same box.yml (joint volume) and the same image.
+# TLS keys live OUTSIDE the repo and are mounted read-only into /keys —
+# point tls.key / tls.cert in box.yml at /keys/....
+#
+# BOX_SRC = path to the box source checkout (default: ../../../box).
+# If RabbitMQ runs on the same host via docker-compose.infra.yml, keep the
+# shared 'mailtro' network and use host 'rabbitmq' in box.yml; otherwise set
+# the public AMQP host in box.yml.
+services:
+  box-server:
+    build: ${BOX_SRC:-../../../box}
+    image: mailtro-box
+    container_name: box-server
+    environment:
+      MODE: server
+    ports:
+      - "25:25"
+    volumes:
+      - ./box.yml:/etc/box.yml:ro
+      - ${BOX_KEYS_DIR:-./keys}:/keys:ro
+      - box-log:/log
+    networks:
+      - mailtro
+    restart: unless-stopped
+
+  box-client:
+    image: mailtro-box
+    container_name: box-client
+    depends_on:
+      - box-server
+    environment:
+      MODE: client
+    volumes:
+      - ./box.yml:/etc/box.yml:ro
+      - ${BOX_KEYS_DIR:-./keys}:/keys:ro
+      - box-log:/log
+    networks:
+      - mailtro
+    restart: unless-stopped
+
+volumes:
+  box-log:
+
+networks:
+  mailtro:
+    external: true

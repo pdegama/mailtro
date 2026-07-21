@@ -1,52 +1,90 @@
-import { Paperclip } from 'lucide-react';
-import type { MailItem } from '../../data/imbox';
-import { MailAvatar } from './MailAvatar';
+import type { Mail } from '../../api/types';
 import { cn } from '../../lib/cn';
+import { StatusDot } from '../ui/primitives';
 
-type MailRowProps = {
-  item: MailItem;
-  onSelect?: (item: MailItem) => void;
+function timeLabel(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const sameDay =
+    d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear();
+  if (sameDay) return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+const SENT_STATUS: Record<string, { label: string; tone: 'good' | 'warn' | 'bad' | 'muted' }> = {
+  queued: { label: 'Sending', tone: 'muted' },
+  tryagain: { label: 'Retrying', tone: 'warn' },
+  delivered: { label: 'Delivered', tone: 'good' },
+  failed: { label: 'Failed', tone: 'bad' },
 };
 
-export function MailRow({ item, onSelect }: MailRowProps) {
+type Props = {
+  mail: Mail;
+  mailbox: 'inbox' | 'sent';
+  onOpen: () => void;
+};
+
+export function MailRow({ mail, mailbox, onOpen }: Props) {
+  const who =
+    mailbox === 'sent'
+      ? mail.to_address
+      : mail.from_name || mail.from_address.split('@')[0] || mail.from_address;
+  const sentStatus = mailbox === 'sent' ? SENT_STATUS[mail.status] : undefined;
+
   return (
     <button
-      type="button"
-      onClick={() => onSelect?.(item)}
-      className="group grid w-full grid-cols-[8px_36px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-xl border border-transparent px-2 py-2.5 text-left transition hover:border-ink/8 hover:bg-ink/[0.03] dark:hover:border-white/10 dark:hover:bg-white/[0.045]"
+      onClick={onOpen}
+      className={cn(
+        'group flex w-full items-center gap-3 border-b border-line/60 px-4 py-2.5 text-left last:border-0',
+        'transition-colors hover:bg-accent-soft/40'
+      )}
     >
+      {/* unread marker */}
       <span
         className={cn(
-          'mx-auto block size-1.5 rounded-full',
-          item.unread ? 'bg-coral' : 'bg-transparent'
+          'size-1.5 shrink-0 rounded-full',
+          mailbox === 'inbox' && mail.unread ? 'bg-accent' : 'bg-transparent'
         )}
       />
-      <MailAvatar initials={item.initials} color={item.avatarColor} />
-      <div className="min-w-0">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <p
-            className={cn(
-              'm-0 truncate text-[15px] leading-tight text-ink dark:text-white',
-              item.unread ? 'font-bold' : 'font-semibold'
-            )}
-          >
-            {item.subject}
-          </p>
-          {item.attachment ? (
-            <Paperclip className="size-3.5 shrink-0 text-ink/35 dark:text-white/40" />
-          ) : null}
-        </div>
-        <p className="m-0 truncate text-[13px] font-medium leading-5 text-ink/48 dark:text-white/48">
-          <span className={item.unread ? 'font-semibold text-ink/62 dark:text-white/62' : undefined}>
-            {item.sender}
-          </span>
-          <span> — </span>
-          <span>{item.preview}</span>
-        </p>
-      </div>
-      <time className="shrink-0 pl-1 text-xs font-medium text-ink/40 dark:text-white/42">
-        {item.date}
-      </time>
+
+      <span
+        className={cn(
+          'w-[150px] shrink-0 truncate text-[13px]',
+          mail.unread && mailbox === 'inbox' ? 'font-semibold text-ink' : 'text-ink-2'
+        )}
+        title={mailbox === 'sent' ? mail.to_address : mail.from_address}
+      >
+        {who}
+      </span>
+
+      <span className="min-w-0 flex-1 truncate text-[13px]">
+        <span
+          className={cn(
+            mail.unread && mailbox === 'inbox' ? 'font-semibold text-ink' : 'text-ink'
+          )}
+        >
+          {mail.subject || '(no subject)'}
+        </span>
+        {mail.snippet && <span className="text-ink-3"> — {mail.snippet}</span>}
+      </span>
+
+      {mail.tag && (
+        <span className="shrink-0 rounded bg-line/60 px-1.5 py-0.5 text-[10.5px] font-medium text-ink-2">
+          +{mail.tag}
+        </span>
+      )}
+
+      {sentStatus && (
+        <span className="flex shrink-0 items-center gap-1.5 text-[11.5px] text-ink-3">
+          <StatusDot tone={sentStatus.tone} /> {sentStatus.label}
+        </span>
+      )}
+
+      <span className="w-[52px] shrink-0 text-right text-[11.5px] tabular-nums text-ink-3">
+        {timeLabel(mail.created_at)}
+      </span>
     </button>
   );
 }

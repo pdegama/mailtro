@@ -1,0 +1,56 @@
+# Application: Go API backend + React frontend.
+# Requires the shared network:  docker network create mailtro
+# and the infra stack running:  docker compose -f docker-compose.infra.yml up -d
+services:
+  backend:
+    build: ./backend
+    container_name: mailtro-backend
+    environment:
+      # database (infra compose service names on the shared network)
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: ${DB_NAME:-mailtro}
+      DB_SSLMODE: disable
+      PORT: "3000"
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      # rabbitmq (shared with box smtp)
+      AMQP_HOST: rabbitmq
+      AMQP_PORT: "5672"
+      AMQP_USER: ${AMQP_USER:-mailtro}
+      AMQP_PASSWORD: ${AMQP_PASSWORD:-mailtro}
+      # box queue names
+      QUEUE_RECEIVER: ${QUEUE_RECEIVER:-box-receiver-1}
+      QUEUE_SENDER: ${QUEUE_SENDER:-box-sender-1}
+      QUEUE_STATUS: ${QUEUE_STATUS:-box-status-1}
+      # DNS identity users are told to configure (';' separated MX list)
+      MX_HOSTS: ${MX_HOSTS:-smtp.mailtro.site}
+      SPF_INCLUDE: ${SPF_INCLUDE:-_spf.mailtro.site}
+      VERIFY_ZONE: ${VERIFY_ZONE:-verify.mailtro.site}
+      MAIL_HOSTNAME: ${MAIL_HOSTNAME:-smtp.mailtro.site}
+      # delivery retry
+      RETRY_DELAY_MINUTES: ${RETRY_DELAY_MINUTES:-6}
+      MAX_RETRIES: ${MAX_RETRIES:-5}
+    ports:
+      - "3000:3000"
+    networks:
+      - mailtro
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # baked into the JS bundle at build time
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:3000/api}
+    container_name: mailtro-frontend
+    ports:
+      - "8080:80"
+    networks:
+      - mailtro
+    restart: unless-stopped
+
+networks:
+  mailtro:
+    external: true

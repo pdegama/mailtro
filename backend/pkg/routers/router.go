@@ -5,10 +5,12 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/pdegama/mailtroapp/pkg/handlers"
+	domainsvc "github.com/pdegama/mailtroapp/pkg/service/domain"
+	mailsvc "github.com/pdegama/mailtroapp/pkg/service/mail"
 )
 
 // Setup configures all the application routes/endpoints on the Fiber app.
-func Setup(app *fiber.App, db *gorm.DB) {
+func Setup(app *fiber.App, db *gorm.DB, domainService *domainsvc.Service, mailService *mailsvc.Service) {
 	// Health Check Endpoint
 	app.Get("/health", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
@@ -19,16 +21,11 @@ func Setup(app *fiber.App, db *gorm.DB) {
 	// API Routes Setup
 	authHandler := handlers.NewAuthHandler(db)
 	userHandler := handlers.NewUserHandler(db)
-
-	emailHandler := handlers.NewEmailHandler(db)
+	domainHandler := handlers.NewDomainHandler(domainService)
+	mailHandler := handlers.NewMailHandler(mailService)
 
 	// api
 	api := app.Group("/api")
-
-	// tmp
-	api.Get("/emails", emailHandler.ListEmails)
-	api.Post("/emails", emailHandler.CreateEmail)
-	api.Delete("/emails/:id", emailHandler.DeleteEmail)
 
 	// Auth routes
 	api.Post("/auth/register", authHandler.RegisterUser)
@@ -37,4 +34,21 @@ func Setup(app *fiber.App, db *gorm.DB) {
 
 	// profile
 	api.Get("/profile", authHandler.AuthRequired, userHandler.GetProfile)
+
+	// domains
+	domains := api.Group("/domains", authHandler.AuthRequired)
+	domains.Get("/", domainHandler.ListDomains)
+	domains.Post("/", domainHandler.AddDomain)
+	domains.Post("/:id/verify", domainHandler.VerifyDomain)
+	domains.Delete("/:id", domainHandler.DeleteDomain)
+	domains.Get("/:id/aliases", domainHandler.ListAliases)
+	domains.Post("/:id/aliases", domainHandler.AddAlias)
+	domains.Delete("/:id/aliases/:aliasId", domainHandler.DeleteAlias)
+
+	// mails
+	mails := api.Group("/mails", authHandler.AuthRequired)
+	mails.Get("/", mailHandler.ListMails)
+	mails.Post("/send", mailHandler.SendMail)
+	mails.Get("/:id", mailHandler.GetMail)
+	mails.Post("/:id/unread", mailHandler.MarkUnread)
 }
