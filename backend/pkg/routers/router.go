@@ -7,6 +7,7 @@ import (
 	"github.com/pdegama/mailtroapp/pkg/handlers"
 	domainsvc "github.com/pdegama/mailtroapp/pkg/service/domain"
 	mailsvc "github.com/pdegama/mailtroapp/pkg/service/mail"
+	"github.com/pdegama/mailtroapp/static"
 )
 
 // Setup configures all the application routes/endpoints on the Fiber app.
@@ -23,6 +24,9 @@ func Setup(app *fiber.App, db *gorm.DB, domainService *domainsvc.Service, mailSe
 	userHandler := handlers.NewUserHandler(db)
 	domainHandler := handlers.NewDomainHandler(domainService)
 	mailHandler := handlers.NewMailHandler(mailService)
+
+	// setup static for frontend
+	static.SetupStatic(app)
 
 	// api
 	api := app.Group("/api")
