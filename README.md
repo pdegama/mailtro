@@ -8,8 +8,8 @@ SMTP: [Box SMTP](https://github.com/rellitelink/box) (server + client) over Rabb
 
 ```
                     ┌───────────── mail server (smtp.mailtro.site) ─────────────┐
- internet ── :25 ──►│ box-server │──► receiver queue ─┐                          
-                    │ box-client │◄── sender queue  ◄─┼── RabbitMQ               
+ internet ── :25 ──►│    box     │──► receiver queue ─┐                          
+                    │ (srv+clnt) │◄── sender queue  ◄─┼── RabbitMQ               
                     └────────────┘──► status queue  ──┘        ▲                 
                                                                │                 
                     ┌── app ──────────────────────────────────┴───┐             
@@ -56,22 +56,23 @@ docker compose -f docker-compose.infra.yml up -d
 
 RabbitMQ management UI: `http://localhost:15672` (user/pass from `.env`).
 
-### 3. Box SMTP (on the mail server)
+### 3. Box SMTP (deployed separately, on the mail server)
 
-Clone box next to mailtro (or set `BOX_SRC` to its path), put your TLS keys
-somewhere outside the repo, then:
+Box is deployed from its own repo — it is not part of the mailtro compose
+stacks. One container runs the SMTP server (:25) and the delivery client
+together:
 
 ```sh
-cd deploy/box
-# edit box.yml: hostname, amqp host/credentials, queue names
+git clone <box repo> && cd box
+# edit config.yml: hostname, tls key/cert under /keys, amqp host/credentials,
+# queue names (must match QUEUE_* in mailtro's .env)
 BOX_KEYS_DIR=/etc/letsencrypt/live/smtp.mailtro.site docker compose up -d --build
 ```
 
-This starts `box-server` (SMTP :25) and `box-client` (delivery worker) sharing
-the same `box.yml` via a joint volume; keys are mounted read-only at `/keys`.
-With host networking box reaches RabbitMQ on `localhost`; if RabbitMQ is on
-another host, set its public address in `box.yml`.
-(Box also ships its own `docker-compose.yml` in the box repo — either works.)
+The config is mounted at `/etc/box.yml`; TLS keys are mounted read-only at
+`/keys` from outside the repo. With host networking box reaches RabbitMQ on
+`localhost`; if RabbitMQ is on another host, set its public address in the
+config.
 
 ### 4. App (backend + frontend)
 
