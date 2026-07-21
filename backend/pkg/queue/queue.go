@@ -26,8 +26,10 @@ func Connect(cfg *config.Config) (*Queue, error) {
 	return &Queue{cfg: cfg, conn: conn}, nil
 }
 
+// declare must use the exact same arguments as box (non-durable), otherwise
+// RabbitMQ rejects the re-declaration with PRECONDITION_FAILED (406).
 func (q *Queue) declare(ch *amqp.Channel, name string) error {
-	_, err := ch.QueueDeclare(name, true, false, false, false, nil)
+	_, err := ch.QueueDeclare(name, false, false, false, false, nil)
 	return err
 }
 
@@ -44,9 +46,8 @@ func (q *Queue) Publish(queueName string, body []byte) error {
 	}
 
 	return ch.Publish("", queueName, false, false, amqp.Publishing{
-		DeliveryMode: amqp.Persistent,
-		ContentType:  "text/plain",
-		Body:         body,
+		ContentType: "text/plain",
+		Body:        body,
 	})
 }
 
