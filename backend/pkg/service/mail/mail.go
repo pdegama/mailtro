@@ -43,16 +43,20 @@ func (s *Service) StartWorkers() {
 func (s *Service) handleIncoming(body []byte) error {
 	var in mailer.IncomingMail
 	if err := yaml.Unmarshal(body, &in); err != nil {
+		fmt.Println(string(body))
+		fmt.Printf("bad receiver message: %w\n", err)
 		return fmt.Errorf("bad receiver message: %w", err)
 	}
+	fmt.Println(in)
 
 	dkimStatus := mailer.VerifyDKIM(in.Data)
 
 	parsed, err := mailer.Parse(in.Data)
 	if err != nil {
-		log.Printf("uid=%s: unparsable mail from %s: %v", in.UID, in.From, err)
+		log.Printf("uid=%s: unparsable mail from %s: %v\n", in.UID, in.From, err)
 		parsed = &mailer.ParsedMail{Subject: "(unreadable message)", FromAddr: strings.ToLower(in.From)}
 	}
+	fmt.Println(parsed)
 
 	fromAddr := parsed.FromAddr
 	if fromAddr == "" {
@@ -88,6 +92,7 @@ func (s *Service) handleIncoming(body []byte) error {
 			Status:      models.MailStatusReceived,
 		}
 		if err := s.DB.Create(&m).Error; err != nil {
+			log.Printf("uid=%s: failed to store mail: %v\n", in.UID, err)
 			return fmt.Errorf("store mail uid=%s: %w", in.UID, err)
 		}
 		delivered++
