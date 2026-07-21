@@ -1,13 +1,14 @@
 # Application: Go API backend + React frontend.
-# Requires the shared network:  docker network create mailtro
-# and the infra stack running:  docker compose -f docker-compose.infra.yml up -d
+# Host networking — backend listens on host :3000, frontend nginx on host :8080.
+# Infra must be running first:  docker compose -f docker-compose.infra.yml up -d
 services:
   backend:
     build: ./backend
     container_name: mailtro-backend
+    network_mode: host
     environment:
-      # database (infra compose service names on the shared network)
-      DB_HOST: postgres
+      # database (infra listens on the host)
+      DB_HOST: localhost
       DB_PORT: "5432"
       DB_USER: ${DB_USER:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
@@ -16,7 +17,7 @@ services:
       PORT: "3000"
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
       # rabbitmq (shared with box smtp)
-      AMQP_HOST: rabbitmq
+      AMQP_HOST: localhost
       AMQP_PORT: "5672"
       AMQP_USER: ${AMQP_USER:-mailtro}
       AMQP_PASSWORD: ${AMQP_PASSWORD:-mailtro}
@@ -32,10 +33,6 @@ services:
       # delivery retry
       RETRY_DELAY_MINUTES: ${RETRY_DELAY_MINUTES:-6}
       MAX_RETRIES: ${MAX_RETRIES:-5}
-    ports:
-      - "3000:3000"
-    networks:
-      - mailtro
     restart: unless-stopped
 
   frontend:
@@ -45,12 +42,5 @@ services:
         # baked into the JS bundle at build time
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:3000/api}
     container_name: mailtro-frontend
-    ports:
-      - "8080:80"
-    networks:
-      - mailtro
+    network_mode: host  # nginx listens on host :8080 (see frontend/nginx.conf)
     restart: unless-stopped
-
-networks:
-  mailtro:
-    external: true

@@ -20,7 +20,7 @@ check_mailbox: false
 
 # incoming mail -> receiver queue (mailtro backend consumes this)
 amqp_conf:
-  host: rabbitmq            # infra compose service; use public host if remote
+  host: localhost           # host networking; use public host if remote
   port: 5672
   username: mailtro
   password: mailtro
@@ -35,7 +35,7 @@ client:
   # outgoing mail <- sender queue (mailtro backend publishes),
   # delivery results -> status queue (mailtro backend consumes)
   amqp_conf:
-    host: rabbitmq          # infra compose service; use public host if remote
+    host: localhost         # host networking; use public host if remote
     port: 5672
     username: mailtro
     password: mailtro

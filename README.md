@@ -35,11 +35,8 @@ SMTP: [Box SMTP](https://github.com/rellitelink/box) (server + client) over Rabb
   - `_spf.mailtro.site` → root SPF TXT listing your mail server IPs
   - `verify.mailtro.site` zone used for CNAME ownership challenges
 
-Create the shared docker network once per host:
-
-```sh
-docker network create mailtro
-```
+All compose stacks use **host networking** — services talk to each other over
+`localhost` (postgres :5432, rabbitmq :5672, api :3000, web :8080, smtp :25).
 
 ### 1. Configure
 
@@ -72,7 +69,9 @@ BOX_KEYS_DIR=/etc/letsencrypt/live/smtp.mailtro.site docker compose up -d --buil
 
 This starts `box-server` (SMTP :25) and `box-client` (delivery worker) sharing
 the same `box.yml` via a joint volume; keys are mounted read-only at `/keys`.
-If RabbitMQ is on another host, set its public address in `box.yml`.
+With host networking box reaches RabbitMQ on `localhost`; if RabbitMQ is on
+another host, set its public address in `box.yml`.
+(Box also ships its own `docker-compose.yml` in the box repo — either works.)
 
 ### 4. App (backend + frontend)
 
