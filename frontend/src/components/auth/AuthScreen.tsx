@@ -81,7 +81,7 @@ export function AuthScreen({ theme, onThemeToggle, onAuthenticated }: Props) {
             <Field label="Username">
               <Input
                 value={username}
-                onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                onChange={(e) => setUsername(e.target.value)}
                 placeholder="ada"
                 autoComplete="username"
                 autoFocus

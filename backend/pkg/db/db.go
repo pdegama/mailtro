@@ -30,17 +30,21 @@ func Init(cfg *config.Config) (*gorm.DB, error) {
 	log.Println("Database connection successfully established")
 
 	// Run AutoMigrations
-	err = database.AutoMigrate(
+	// migrate(database)
+
+	return database, nil
+}
+
+func migrate(database *gorm.DB) {
+	err := database.AutoMigrate(
 		&models.Users{},
 		&models.Domain{},
 		&models.Alias{},
 		&models.Mail{},
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to run database migration: %w", err)
+		log.Panicf("failed to run database migration: %w", err)
 	}
 
 	log.Println("Database migration completed successfully")
-
-	return database, nil
 }

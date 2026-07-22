@@ -70,11 +70,14 @@ func (h *AuthHandler) LoginUser(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "username and password required"})
 	}
 
-	user, token, err := h.Service.Auth(&authsvc.AuthCred{Username: req.Username, Password: req.Password})
+	user, token, err := h.Service.Auth(&authsvc.AuthCred{Username: strings.ToLower(req.Username), Password: req.Password})
 	if err != nil {
 		status := fiber.StatusUnauthorized
 		if strings.Contains(err.Error(), "username") {
 			status = fiber.StatusBadRequest
+		}
+		if err == gorm.ErrRecordNotFound {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Invalid username or password!"})
 		}
 		return c.Status(status).JSON(fiber.Map{"error": err.Error()})
 	}
